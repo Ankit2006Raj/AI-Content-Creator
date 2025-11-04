@@ -96,6 +96,7 @@ def generate_content():
         prompt = data.get('prompt', '')
         tone = data.get('tone', 'friendly')
         length = data.get('length', 'medium')
+        language = data.get('language', 'en')  # Get language from frontend
         
         # Reload environment and check for API key
         load_dotenv()
@@ -119,6 +120,21 @@ def generate_content():
         
         if not prompt:
             return jsonify({'error': 'Prompt is required'}), 400
+        
+        # Language-specific instructions - VERY STRONG
+        if language == 'hi':
+            language_instruction = """
+🔴 CRITICAL INSTRUCTION - MUST FOLLOW:
+- You MUST write the ENTIRE response in HINDI language ONLY
+- Use Devanagari script (हिंदी लिपि) exclusively
+- DO NOT use any English words except proper nouns if absolutely necessary
+- Write naturally in Hindi as a native Hindi speaker would
+- यह बहुत जरूरी है कि आप पूरा कंटेंट हिंदी में ही लिखें
+"""
+        else:
+            language_instruction = """
+Generate the content in English language only.
+"""
         
         # Create content type specific instructions
         content_instructions = {
@@ -147,6 +163,8 @@ def generate_content():
         
         system_prompt = f"""You are an expert content writer. {content_instructions.get(content_type, 'Create high-quality content')}.
 
+{language_instruction}
+
 Requirements:
 - Content Type: {content_type}
 - Tone: {tone_guide.get(tone, 'friendly')}
@@ -154,6 +172,8 @@ Requirements:
 - Make it engaging, well-structured, and valuable to the reader
 
 User Request: {prompt}
+
+Remember: {"Write EVERYTHING in HINDI (हिंदी में) using Devanagari script!" if language == 'hi' else "Write in English."}
 
 Please generate the content now:"""
 
