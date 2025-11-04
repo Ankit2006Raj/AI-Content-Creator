@@ -39,6 +39,14 @@ function setupTabs() {
 function switchTab(tab) {
     activeTab = tab;
     
+    // Stop any playing speech when switching tabs
+    if (isSpeaking || speechSynthesis.speaking) {
+        isIntentionalStop = true;
+        speechSynthesis.cancel();
+        isSpeaking = false;
+        setTimeout(() => { isIntentionalStop = false; }, 200);
+    }
+    
     // Update tab buttons
     document.querySelectorAll('.tab-button').forEach(btn => {
         btn.classList.remove('active');
@@ -129,6 +137,179 @@ function setupEventListeners() {
         });
     }
 
+    // Real-time voice type control - CONTINUE FROM POSITION
+    const voiceTypeSelect = document.getElementById('voiceType');
+    if (voiceTypeSelect) {
+        voiceTypeSelect.addEventListener('change', function() {
+            const newVoiceType = this.value;
+            const voiceLabel = newVoiceType === 'female' ? 'Female' : newVoiceType === 'male' ? 'Male' : 'Default';
+            
+            // If speech is currently playing, apply voice change and resume from current position
+            if (isSpeaking && currentUtterance && currentSpeechText) {
+                try {
+                    if (speechSynthesis.speaking) {
+                        // Store current state
+                        const currentLang = currentUtterance.lang;
+                        const currentRate = currentUtterance.rate;
+                        const currentPitch = currentUtterance.pitch;
+                        const currentVolume = currentUtterance.volume;
+                        
+                        // Get remaining text from current position
+                        const remainingText = currentSpeechText.substring(currentCharIndex);
+                        
+                        console.log(`🎤 Changing voice to ${voiceLabel} at character ${currentCharIndex} of ${currentSpeechText.length}`);
+                        console.log(`📝 Remaining text: ${remainingText.substring(0, 50)}...`);
+                        
+                        // Find which button is active
+                        let activePlayBtn = null;
+                        let activePauseBtn = null;
+                        if (document.getElementById('playGeneratedContent').classList.contains('hidden')) {
+                            activePlayBtn = document.getElementById('playGeneratedContent');
+                            activePauseBtn = document.getElementById('pauseGeneratedContent');
+                        } else if (document.getElementById('playSummaryContent').classList.contains('hidden')) {
+                            activePlayBtn = document.getElementById('playSummaryContent');
+                            activePauseBtn = document.getElementById('pauseSummaryContent');
+                        }
+                        
+                        // Detect content language
+                        const hasHindiChars = /[\u0900-\u097F]/.test(currentSpeechText);
+                        const contentLanguage = hasHindiChars ? 'hi' : 'en';
+                        
+                        // Cancel current speech (intentional, not an error)
+                        isIntentionalStop = true;
+                        speechSynthesis.cancel();
+                        
+                        // Small delay to ensure cancel completes
+                        setTimeout(() => {
+                            isIntentionalStop = false;
+                            
+                            // Create new utterance with REMAINING text and new voice
+                            currentUtterance = new SpeechSynthesisUtterance(remainingText);
+                            currentUtterance.lang = currentLang;
+                            currentUtterance.rate = currentRate;
+                            currentUtterance.pitch = currentPitch;
+                            currentUtterance.volume = currentVolume;
+                            
+                            // Select new voice based on voice type
+                            const voices = speechSynthesis.getVoices();
+                            let selectedVoice = null;
+                            
+                            if (contentLanguage === 'hi') {
+                                // For Hindi content
+                                const hindiVoices = voices.filter(voice => 
+                                    voice.lang.includes('hi') || 
+                                    voice.lang.includes('HI') ||
+                                    voice.name.toLowerCase().includes('hindi')
+                                );
+                                
+                                if (hindiVoices.length > 0) {
+                                    if (newVoiceType === 'female') {
+                                        selectedVoice = hindiVoices.find(voice => {
+                                            const name = voice.name.toLowerCase();
+                                            return name.includes('female') || name.includes('woman') ||
+                                                   name.includes('swara') || name.includes('kalpana');
+                                        });
+                                    } else if (newVoiceType === 'male') {
+                                        selectedVoice = hindiVoices.find(voice => {
+                                            const name = voice.name.toLowerCase();
+                                            return name.includes('male') || name.includes('man') ||
+                                                   name.includes('pankaj') || name.includes('hemant');
+                                        });
+                                    }
+                                    
+                                    if (!selectedVoice) {
+                                        selectedVoice = hindiVoices[0];
+                                    }
+                                }
+                            } else {
+                                // For English content
+                                const englishVoices = voices.filter(voice => 
+                                    voice.lang.includes('en') && !voice.lang.includes('en-IN')
+                                );
+                                
+                                if (newVoiceType === 'female') {
+                                    selectedVoice = englishVoices.find(voice => {
+                                        const name = voice.name.toLowerCase();
+                                        return name.includes('female') || name.includes('woman') ||
+                                               name.includes('zira') || name.includes('susan') ||
+                                               name.includes('hazel') || name.includes('samantha');
+                                    });
+                                } else if (newVoiceType === 'male') {
+                                    selectedVoice = englishVoices.find(voice => {
+                                        const name = voice.name.toLowerCase();
+                                        return name.includes('male') || name.includes('man') ||
+                                               name.includes('david') || name.includes('mark');
+                                    });
+                                }
+                                
+                                if (!selectedVoice && englishVoices.length > 0) {
+                                    selectedVoice = englishVoices[0];
+                                }
+                            }
+                            
+                            if (selectedVoice) {
+                                currentUtterance.voice = selectedVoice;
+                                console.log(`✓ New voice selected: ${selectedVoice.name}`);
+                            }
+                            
+                            // Track new position in remaining text
+                            let localCharIndex = 0;
+                            currentUtterance.onboundary = function(event) {
+                                if (event.name === 'word') {
+                                    localCharIndex = event.charIndex;
+                                    // Update global position (base position + local offset)
+                                    currentCharIndex = currentCharIndex + localCharIndex;
+                                }
+                            };
+                            
+                            // Re-attach event handlers
+                            currentUtterance.onstart = function() {
+                                isSpeaking = true;
+                                if (activePlayBtn && activePauseBtn) {
+                                    activePlayBtn.classList.add('hidden');
+                                    activePauseBtn.classList.remove('hidden');
+                                    activePauseBtn.innerHTML = `<span>⏹️</span> Stop`;
+                                }
+                            };
+                            
+                            currentUtterance.onend = function() {
+                                isSpeaking = false;
+                                currentCharIndex = 0;
+                                if (activePlayBtn && activePauseBtn) {
+                                    activePlayBtn.classList.remove('hidden');
+                                    activePauseBtn.classList.add('hidden');
+                                    activePlayBtn.innerHTML = activePlayBtn.id === 'playGeneratedContent' 
+                                        ? '<span>🔊</span> Listen to Content' 
+                                        : '<span>🔊</span> Listen to Summary';
+                                    activePauseBtn.innerHTML = '<span>⏸️</span> Pause';
+                                }
+                            };
+                            
+                            currentUtterance.onerror = function(event) {
+                                console.log('Speech synthesis event during voice change:', event.error);
+                                // Ignore errors during voice changes - they're expected
+                                isSpeaking = false;
+                            };
+                            
+                            // Continue speaking from current position with new voice
+                            speechSynthesis.speak(currentUtterance);
+                            
+                            console.log(`✓ Voice changed to ${voiceLabel} - Continuing from current position`);
+                        }, 100);
+                        
+                        showAlert(`🎤 Voice changed to ${voiceLabel} - Continuing...`, 'success');
+                    }
+                } catch (error) {
+                    console.error('Error changing voice:', error);
+                    showAlert(`Voice will apply on next playback: ${voiceLabel}`, 'success');
+                }
+            } else {
+                // Not currently playing - just show confirmation for next play
+                showAlert(`✓ Voice set to ${voiceLabel} for next playback`, 'success');
+            }
+        });
+    }
+
     // Real-time voice speed control - CONTINUE FROM POSITION
     const voiceSpeedSelect = document.getElementById('voiceSpeed');
     if (voiceSpeedSelect) {
@@ -212,7 +393,8 @@ function setupEventListeners() {
                             };
                             
                             currentUtterance.onerror = function(event) {
-                                console.error('Speech synthesis error:', event);
+                                console.log('Speech synthesis event during speed change:', event.error);
+                                // Ignore errors during speed changes - they're expected
                                 isSpeaking = false;
                             };
                             
@@ -238,6 +420,14 @@ function setupEventListeners() {
 
 // Content Generation
 async function handleGenerate() {
+    // Stop any playing speech before generating new content
+    if (isSpeaking || speechSynthesis.speaking) {
+        isIntentionalStop = true;
+        speechSynthesis.cancel();
+        isSpeaking = false;
+        setTimeout(() => { isIntentionalStop = false; }, 200);
+    }
+    
     const promptTextarea = document.getElementById('generatePrompt');
     const prompt = promptTextarea.value.trim();
     const contentType = document.getElementById('contentType').value;
@@ -304,24 +494,28 @@ async function handleGenerate() {
 function detectLanguageFromPrompt(prompt) {
     const lowerPrompt = prompt.toLowerCase();
     
-    // Check if user explicitly asks for Hindi content
-    const hindiKeywords = [
-        'hindi', 'हिंदी', 'हिन्दी', 'hindi me', 'hindi mein', 'in hindi',
-        'मे', 'में', 'ka', 'ke', 'ki', 'karu', 'karo', 'banao', 'likhao',
-        'बनाओ', 'लिखो', 'करो', 'बताओ', 'बनाइये', 'लिखिये'
+    // First priority: Check for Hindi/Devanagari characters
+    const hasHindiChars = /[\u0900-\u097F]/.test(prompt);
+    if (hasHindiChars) {
+        return 'hi';
+    }
+    
+    // Second priority: Check if user explicitly asks for Hindi content
+    const hindiExplicitKeywords = [
+        'hindi me', 'hindi mein', 'in hindi', 'hindi language',
+        'हिंदी में', 'हिन्दी में'
     ];
     
-    // Check if user explicitly asks for English content
-    const englishKeywords = [
-        'in english', 'english me', 'english mein', 'english language'
-    ];
-    
-    // Check for explicit language request first
-    for (let keyword of hindiKeywords) {
+    for (let keyword of hindiExplicitKeywords) {
         if (lowerPrompt.includes(keyword)) {
             return 'hi';
         }
     }
+    
+    // Third priority: Check if user explicitly asks for English content
+    const englishKeywords = [
+        'in english', 'english me', 'english mein', 'english language'
+    ];
     
     for (let keyword of englishKeywords) {
         if (lowerPrompt.includes(keyword)) {
@@ -329,40 +523,49 @@ function detectLanguageFromPrompt(prompt) {
         }
     }
     
-    // If no explicit request, check for Hindi characters
-    const hasHindiChars = /[\u0900-\u097F]/.test(prompt);
-    if (hasHindiChars) {
-        return 'hi';
-    }
-    
-    // Check for Hinglish patterns (Hindi words in English script)
+    // Fourth priority: Check for specific Hinglish patterns (WHOLE WORDS ONLY)
+    // Use word boundaries to avoid false matches like "collage" matching "kaha"
     const hinglishPatterns = [
-        'kya', 'hai', 'hain', 'tha', 'thi', 'kar', 'karo', 'karu',
-        'kaise', 'kaisa', 'kaha', 'kahani', 'story', 'banao', 'banaye',
-        'likhao', 'likho', 'batao', 'bataiye', 'kuch', 'apna', 'mera',
-        'tera', 'tumhara', 'humara', 'wala', 'wali', 'wale'
+        /\bhindu\b/, /\bhindi\b/, /\bkya\b/, /\bhai\b/, /\bhain\b/, 
+        /\bkar\b/, /\bkaro\b/, /\bkaru\b/, /\bbanao\b/, /\bbanaye\b/,
+        /\blikhao\b/, /\blikho\b/, /\bbatao\b/, /\bbataiye\b/, 
+        /\bkaise\b/, /\bkaisa\b/, /\bkahani\b/, /\bkuch\b/,
+        /\bmein\b/, /\bmujhe\b/, /\btumhara\b/, /\bhumara\b/,
+        /\bapna\b/, /\bmera\b/, /\btera\b/, /\bwala\b/, /\bwali\b/, /\bwale\b/
     ];
     
-    const words = lowerPrompt.split(/\s+/);
     let hinglishCount = 0;
     
-    for (let word of words) {
-        if (hinglishPatterns.includes(word)) {
+    for (let pattern of hinglishPatterns) {
+        if (pattern.test(lowerPrompt)) {
             hinglishCount++;
         }
     }
     
-    // If multiple Hinglish words found, treat as Hindi request
+    // Need at least 2 strong Hinglish indicators to treat as Hindi
     if (hinglishCount >= 2) {
         return 'hi';
     }
     
-    // Default to English
+    // Check for single strong Hindi indicator (like just "hindi" word)
+    if (/\bhindi\b/.test(lowerPrompt)) {
+        return 'hi';
+    }
+    
+    // Default to English for everything else
     return 'en';
 }
 
 // Content Summarization
 async function handleSummarize() {
+    // Stop any playing speech before summarizing new content
+    if (isSpeaking || speechSynthesis.speaking) {
+        isIntentionalStop = true;
+        speechSynthesis.cancel();
+        isSpeaking = false;
+        setTimeout(() => { isIntentionalStop = false; }, 200);
+    }
+    
     const text = document.getElementById('summarizeText').value.trim();
     const summaryType = document.getElementById('summaryType').value;
     
@@ -786,6 +989,12 @@ function playContent(type) {
         return;
     }
     
+    // Ensure buttons are in correct initial state
+    if (playBtn && pauseBtn) {
+        playBtn.classList.remove('hidden');
+        pauseBtn.classList.add('hidden');
+    }
+    
     // Clean text for speech (remove markdown formatting)
     const cleanedContent = cleanTextForSpeech(content);
     
@@ -989,17 +1198,25 @@ function playContent(type) {
         };
         
         currentUtterance.onerror = function(event) {
-            console.error('Speech synthesis error:', event);
+            console.log('Speech synthesis event:', event.error);
             
-            // Don't show error if user intentionally stopped playback
-            if (!isIntentionalStop) {
+            // Filter out non-critical errors (interrupted, canceled)
+            const criticalErrors = ['network', 'synthesis-failed', 'audio-busy', 'not-allowed'];
+            const isCriticalError = criticalErrors.includes(event.error);
+            
+            // Don't show error if user intentionally stopped playback or if it's a non-critical error
+            if (!isIntentionalStop && isCriticalError) {
                 showAlert('Error playing audio. Your browser may not support the selected voice.', 'error');
             }
             
             isSpeaking = false;
-            playBtn.classList.remove('hidden');
-            pauseBtn.classList.add('hidden');
-            pauseBtn.innerHTML = '<span>⏸️</span> Pause';
+            // Ensure play button is visible and stop button is hidden
+            if (playBtn && pauseBtn) {
+                playBtn.classList.remove('hidden');
+                pauseBtn.classList.add('hidden');
+                pauseBtn.innerHTML = '<span>⏸️</span> Pause';
+                playBtn.innerHTML = type === 'generate' ? '<span>🔊</span> Listen to Content' : '<span>🔊</span> Listen to Summary';
+            }
         };
         
         speechSynthesis.speak(currentUtterance);
@@ -1008,9 +1225,16 @@ function playContent(type) {
 
 // Stop Content - IMPROVED (was pauseContent)
 function pauseContent() {
-    if (isSpeaking && currentUtterance) {
+    if (isSpeaking || speechSynthesis.speaking) {
         isIntentionalStop = true; // Mark as intentional stop to prevent error message
-        speechSynthesis.cancel();
+        
+        // Cancel all speech
+        try {
+            speechSynthesis.cancel();
+        } catch (e) {
+            console.log('Cancel speech error (ignored):', e);
+        }
+        
         isSpeaking = false;
         
         showAlert('🛑 Playback stopped', 'success');
@@ -1033,7 +1257,7 @@ function pauseContent() {
         // Reset flag after a short delay
         setTimeout(() => {
             isIntentionalStop = false;
-        }, 100);
+        }, 200);
     }
 }
 
