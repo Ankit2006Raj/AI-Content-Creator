@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Content Generation & Summarization Tool</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <div class="logo">
+                <div class="logo-icon">✨</div>
+                <h1>AI Content Studio</h1>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-button active" data-tab="generate">
+                🚀 Generate Content
+            </button>
+            <button class="tab-button" data-tab="summarize">
+                📝 Summarize Text
+            </button>
+        </div>
+
+        <!-- Generate Content Section -->
+        <div id="generate-section" class="tab-content">
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-icon">✨</div>
+                    <span>Generate High-Quality Content</span>
+                </div>
+                
+                <div class="form-group">
+                    <label for="generatePrompt">What would you like to generate? *</label>
+                    <div class="input-with-voice">
+                        <textarea 
+                            id="generatePrompt" 
+                            placeholder="E.g., Write a blog post about the benefits of artificial intelligence in healthcare... या आप voice से भी बोल सकते हैं!"
+                            rows="4"
+                        ></textarea>
+                        <div class="voice-controls">
+                            <button id="voiceInputBtn" class="btn-voice" title="Voice Input">
+                                <span class="voice-icon">🎤</span>
+                            </button>
+                            <div id="voiceStatus" class="voice-status hidden"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="options-grid">
+                    <div class="option-group">
+                        <label for="contentType">Content Type</label>
+                        <select id="contentType">
+                            <option value="blog">Blog Post</option>
+                            <option value="social">Social Media</option>
+                            <option value="email">Email</option>
+                            <option value="product">Product Description</option>
+                            <option value="article">Article</option>
+                        </select>
+                    </div>
+
+                    <div class="option-group">
+                        <label for="tone">Tone</label>
+                        <select id="tone">
+                            <option value="friendly">Friendly</option>
+                            <option value="formal">Formal</option>
+                            <option value="persuasive">Persuasive</option>
+                            <option value="casual">Casual</option>
+                            <option value="professional">Professional</option>
+                        </select>
+                    </div>
+
+                    <div class="option-group">
+                        <label for="length">Length</label>
+                        <select id="length">
+                            <option value="short">Short (200-300 words)</option>
+                            <option value="medium" selected>Medium (500-700 words)</option>
+                            <option value="long">Long (1000-1500 words)</option>
+                        </select>
+                    </div>
+
+                    <!-- Voice Settings -->
+                    <div class="option-group">
+                        <label for="voiceType">Voice Type</label>
+                        <select id="voiceType">
+                            <option value="female">Female Voice</option>
+                            <option value="male">Male Voice</option>
+                            <option value="default">Default Voice</option>
+                        </select>
+                    </div>
+
+                    <div class="option-group">
+                        <label for="voiceSpeed">Speech Speed</label>
+                        <select id="voiceSpeed">
+                            <option value="0.8">Slow</option>
+                            <option value="1.0" selected>Normal</option>
+                            <option value="1.2">Fast</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button id="generateBtn" class="btn btn-primary">
+                    <span>✨</span> Generate Content
+                </button>
+
+                <!-- Result Section -->
+                <div id="generate-result" class="result-section hidden">
+                    <h3 class="result-title">Generated Content:</h3>
+                    <div id="generate-result-content" class="result-content"></div>
+                    <div class="result-actions">
+                        <button id="playGeneratedContent" class="btn btn-primary voice-play-btn">
+                            <span>🔊</span> Listen to Content
+                        </button>
+                        <button id="pauseGeneratedContent" class="btn btn-secondary voice-pause-btn hidden">
+                            <span>⏸️</span> Pause
+                        </button>
+                        <button class="btn btn-secondary copy-btn">
+                            <span>📋</span> Copy to Clipboard
+                        </button>
+                        <button class="btn btn-secondary" onclick="clearGenerateResult()">
+                            <span>🗑️</span> Clear
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Summarize Section -->
+        <div id="summarize-section" class="tab-content hidden">
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-icon">📝</div>
+                    <span>Create Intelligent Summaries</span>
+                </div>
+                
+                <div class="form-group">
+                    <label for="summarizeText">Paste your text to summarize *</label>
+                    <textarea 
+                        id="summarizeText" 
+                        placeholder="Paste your long document, article, or text here. The AI will create an intelligent summary preserving all key information..."
+                        rows="10"
+                    ></textarea>
+                </div>
+
+                <div class="options-grid">
+                    <div class="option-group">
+                        <label for="summaryType">Summary Type</label>
+                        <select id="summaryType">
+                            <option value="brief">Brief (2-3 sentences)</option>
+                            <option value="detailed">Detailed (2-3 paragraphs)</option>
+                            <option value="bullet">Bullet Points</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button id="summarizeBtn" class="btn btn-primary">
+                    <span>📝</span> Summarize
+                </button>
+
+                <!-- Result Section -->
+                <div id="summarize-result" class="result-section hidden">
+                    <h3 class="result-title">Summary:</h3>
+                    <div id="summarize-result-content" class="result-content"></div>
+                    <div class="result-actions">
+                        <button id="playSummaryContent" class="btn btn-primary voice-play-btn">
+                            <span>🔊</span> Listen to Summary
+                        </button>
+                        <button id="pauseSummaryContent" class="btn btn-secondary voice-pause-btn hidden">
+                            <span>⏸️</span> Pause
+                        </button>
+                        <button class="btn btn-secondary copy-btn">
+                            <span>📋</span> Copy to Clipboard
+                        </button>
+                        <button class="btn btn-secondary" onclick="clearSummarizeResult()">
+                            <span>🗑️</span> Clear
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script>
+        function clearGenerateResult() {
+            // Stop any playing speech
+            if (window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+            }
+            
+            document.getElementById('generate-result').classList.add('hidden');
+            document.getElementById('generate-result-content').textContent = '';
+            document.getElementById('generatePrompt').value = '';
+            
+            // Reset voice buttons
+            const playBtn = document.getElementById('playGeneratedContent');
+            const pauseBtn = document.getElementById('pauseGeneratedContent');
+            if (playBtn && pauseBtn) {
+                playBtn.classList.remove('hidden');
+                pauseBtn.classList.add('hidden');
+                playBtn.innerHTML = '<span>🔊</span> Listen to Content';
+            }
+        }
+
+        function clearSummarizeResult() {
+            // Stop any playing speech
+            if (window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+            }
+            
+            document.getElementById('summarize-result').classList.add('hidden');
+            document.getElementById('summarize-result-content').textContent = '';
+            document.getElementById('summarizeText').value = '';
+            
+            // Reset voice buttons
+            const playBtn = document.getElementById('playSummaryContent');
+            const pauseBtn = document.getElementById('pauseSummaryContent');
+            if (playBtn && pauseBtn) {
+                playBtn.classList.remove('hidden');
+                pauseBtn.classList.add('hidden');
+                playBtn.innerHTML = '<span>🔊</span> Listen to Summary';
+            }
+        }
+    </script>
+</body>
+</html>
+
